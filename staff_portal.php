@@ -2,8 +2,15 @@
 require 'db.php';
 session_start();
 
+// 1. Authentication check
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");
+    exit();
+}
+
+// 2. Strict Role Guard: Only Admin and Staff are allowed
+if ($_SESSION['role'] === 'Client') {
+    header("Location: pos_order.php");
     exit();
 }
 
@@ -13,28 +20,26 @@ $feedback = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['transact'])) {
     $id = intval($_POST['item_id']);
     $qty = floatval($_POST['qty']);
-    $action = $_POST['action_type'];
+    $action =$_POST['action_type'];
     $notes = htmlspecialchars(trim($_POST['notes']));
 
     if ($qty > 0) {
-        $item_stmt = $conn->prepare("SELECT item_name, current_stock, unit FROM inventory WHERE id = ?");
-        $item_stmt->bind_param("i", $id);
-        $item_stmt->execute();
-        $item = $item_stmt->get_result()->fetch_assoc();
+        $item_stmt =$conn->prepare("SELECT item_name, current_stock, unit FROM inventory WHERE id = ?");
+        $item_stmt->bind_param("i", $id);$item_stmt->execute();
+        $item =$item_stmt->get_result()->fetch_assoc();
 
         if ($item) {
             if ($action === "STOCK IN") {
-                $new_qty = $item['current_stock'] + $qty;
+                $new_qty = $item['current_stock'] +$qty;
             } else {
-                $new_qty = max(0, $item['current_stock'] - $qty);
+                $new_qty = max(0, $item['current_stock'] -$qty);
             }
 
-            $upd = $conn->prepare("UPDATE inventory SET current_stock = ? WHERE id = ?");
-            $upd->bind_param("di", $new_qty, $id);
-            $upd->execute();
+            $upd =$conn->prepare("UPDATE inventory SET current_stock = ? WHERE id = ?");
+            $upd->bind_param("di", $new_qty, $id);$upd->execute();
 
-            $log = $conn->prepare("INSERT INTO logs (item_id, item_name, action_type, quantity, unit, logged_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $log->bind_param("issdsss", $id, $item['item_name'], $action, $qty, $item['unit'], $_SESSION['user'], $notes);
+            $log =$conn->prepare("INSERT INTO logs (item_id, item_name, action_type, quantity, unit, logged_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $log->bind_param("issdsss", $id,$item['item_name'], $action,$qty, $item['unit'],$_SESSION['user'], $notes);
             $log->execute();
 
             $feedback = "<p style='color:#10b981; font-weight:bold; margin:0;'>Updated {$item['item_name']} successfully.</p>";
@@ -42,9 +47,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['transact'])) {
     }
 }
 
-$items = $conn->query("SELECT * FROM inventory ORDER BY category, item_name ASC");
-$recent_logs = $conn->query("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 8");
-$low_stock_count = $conn->query("SELECT COUNT(*) as total FROM inventory WHERE current_stock <= min_alert")->fetch_assoc()['total'];
+$items =$conn->query("SELECT * FROM inventory ORDER BY category, item_name ASC");
+$recent_logs =$conn->query("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 8");
+$low_stock_count =$conn->query("SELECT COUNT(*) as total FROM inventory WHERE current_stock <= min_alert")->fetch_assoc()['total'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -182,10 +187,11 @@ $low_stock_count = $conn->query("SELECT COUNT(*) as total FROM inventory WHERE c
     <header>
         <div>
             <h1>Staff Kitchen Operations</h1>
-            <small style="color:#9ca3af;">Logged in as: <strong><?php echo htmlspecialchars($_SESSION['user']); ?></strong> (<?php echo htmlspecialchars($_SESSION['role']); ?>)</small>
+            <small style="color:#9ca3af;">Logged in as: <strong><?php echo htmlspecialchars($_SESSION['user']); ?></strong> (<?php echo$_SESSION['role']; ?>)</small>
         </div>
         <div class="nav-links">
-            <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'Admin'): ?>
+            <!-- Only Admin can navigate back to Admin Dashboard or POS -->
+            <?php if ($_SESSION['role'] === 'Admin'): ?>
                 <a href="admin_dashboard.php">Admin Dashboard</a>
                 <a href="pos_order.php">Client POS</a>
             <?php endif; ?>
@@ -211,8 +217,7 @@ $low_stock_count = $conn->query("SELECT COUNT(*) as total FROM inventory WHERE c
                 </tr>
             </thead>
             <tbody>
-                <?php while ($row = $items->fetch_assoc()): 
-                    $is_low = $row['current_stock'] <= $row['min_alert'];
+                <?php while ($row = $items->fetch_assoc()):$is_low = $row['current_stock'] <=$row['min_alert'];
                 ?>
                 <tr>
                     <td><strong><?php echo htmlspecialchars($row['item_name']); ?></strong></td>
@@ -254,7 +259,7 @@ $low_stock_count = $conn->query("SELECT COUNT(*) as total FROM inventory WHERE c
                 </tr>
             </thead>
             <tbody>
-                <?php while ($log = $recent_logs->fetch_assoc()): ?>
+                <?php while ($log =$recent_logs->fetch_assoc()): ?>
                 <tr>
                     <td><small style="color:#9ca3af;"><?php echo htmlspecialchars($log['timestamp']); ?></small></td>
                     <td><?php echo htmlspecialchars($log['item_name']); ?></td>
